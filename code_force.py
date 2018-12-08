@@ -56,7 +56,22 @@ def scrape_code_force(gym=False):
     
     print("Submissions found: %s" % submission_id_queue.qsize())
 
+    # The website is stingy and forces us to use the main thread to make requests
+    # Otherwise the threads make calls too quickly and gives us bad results, so the solution
+    # is to let the main thread handle the request calls while other threads process parsing
+    # requests as they enter the queue
+
+    # Global variable letting threads know requests are actively being made
+    global making_requests
+    making_requests = True
+
+    # Queue that requests will be entered to
     request_queue = Queue()
+    for _ in range(3):
+        t = threading.Thread(target=thread_process_request_queue, args=(base_download_path, request_queue))
+        t.start()
+
+    # Start processing requests
     while not submission_id_queue.empty():
         contest_id, submission_id = submission_id_queue.get_nowait()
 
@@ -68,22 +83,26 @@ def scrape_code_force(gym=False):
         r = requests.get(page_url)
         request_queue.put(r.text)
     
-    print("Requests made: %s" % request_queue.qsize())
+    print("All requests have been made. Processing remaining requests...")
     
-    for _ in range(3):
-        t = threading.Thread(target=thread_process_request_queue, args=(base_download_path, request_queue))
-        t.start()
+    making_requests = False
     thread_process_request_queue(base_download_path, request_queue)
     while threading.active_count() != 1:
         continue
     
 
 def thread_process_request_queue(base_download_path, request_queue):
+    global making_requests
     while True:
         try:
             request_text = request_queue.get_nowait()
         except Empty:
-            return
+            # If we're still making requests, we wait a moment and continue
+            if making_requests:
+                time.sleep(1)
+                continue
+            else:
+                return
         
         soup = BeautifulSoup(request_text, 'html.parser')
         submission_data = soup.find('table').find_all('tr')[1].find_all('td')
@@ -121,11 +140,7 @@ def thread_process_request_queue(base_download_path, request_queue):
 
         source_code = soup.find('pre', {'id': "program-source-text"})
 
-        problem_path = os.path.join(base_download_path, contest_id)
-        if not os.path.isdir(problem_path):
-            os.mkdir(problem_path)
-        
-        problem_path = os.path.join(problem_path, problem_id)
+        problem_path = os.path.join(base_download_path, contest_id, problem_id)
         if not os.path.isdir(problem_path):
             os.mkdir(problem_path)
         
