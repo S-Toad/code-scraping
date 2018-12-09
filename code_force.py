@@ -8,7 +8,7 @@ import requests
 import os
 
 CONTEST_LIST_API = "http://codeforces.com/api/contest.list?gym=%s"
-SUBMISSION_LIST_API = "https://codeforces.com/api/contest.status?contestId=%s&count=10"
+SUBMISSION_LIST_API = "https://codeforces.com/api/contest.status?contestId=%s&count=50"
 CONTEST_URL = "http://codeforces.com/contest/%s/status"
 GYM_URL = "http://codeforces.com/gym/%s/status/"
 SUBMISSION_URL = "https://codeforces.com/contest/%s/submission/%s"
@@ -29,34 +29,56 @@ def scrape_code_force(gym=False):
     # Process an api call into a dictionary
     contest_list_dict = json.loads(requests.get(contest_list_query).text)
 
+    i = 0
     for contest_dict in contest_list_dict["result"]:
         # If the contest is finished we'll include it
         if contest_dict["phase"] == "FINISHED":
             contest_id_queue.put(contest_dict['id'])
+            i+=1
+            if i == 10:
+                break
 
     print("Contests found: %s" % contest_id_queue.qsize())
     
     # Queue will hold contest id's and submission id's
     submission_id_queue = Queue()
-    while not contest_id_queue.empty():
-        contest_id = contest_id_queue.get_nowait()
-        # Process the API request (this takes a while, anything we can do about this?)
-        submission_list_dict = json.loads(requests.get(SUBMISSION_LIST_API % contest_id).text)
+    for _ in range(3):
+        t = threading.Thread(target=thread_make_api_calls, args=(contest_id_queue, submission_id_queue))
+        t.start()
+    thread_make_api_calls(contest_id_queue, submission_id_queue)
+    while threading.active_count() != 1:
+        continue
 
-        if submission_list_dict["status"] == "FAILED":
-            continue
-
-        for submission_dict in submission_list_dict['result']:
-            # If the submission is valid and is written in C++, add it to the queue
-            if submission_dict['verdict'] == "OK" and "C++" in submission_dict['programmingLanguage']:
-                submission_id_queue.put((str(contest_id), str(submission_dict['id'])))
-    
     print("Submissions found: %s" % submission_id_queue.qsize())
 
     # The website is stingy and forces us to use the main thread to make requests
     # Otherwise the threads make calls too quickly and gives us bad results, so the solution
     # is to let the main thread handle the request calls while other threads process parsing
     # requests as they enter the queue
+
+
+    
+
+
+    amount = 50
+    with open("test.txt", "w") as file:
+        while not submission_id_queue.empty():
+            contest_id, submission_id = submission_id_queue.get_nowait()
+            page_url = SUBMISSION_URL % (contest_id, submission_id)
+            file.write(page_url + "\n")
+            amount -= 1
+            if amount == 0:
+                break
+    
+    return
+
+
+
+
+
+
+
+
 
     # Global variable letting threads know requests are actively being made
     global making_requests
@@ -71,6 +93,9 @@ def scrape_code_force(gym=False):
 
     # Start processing requests
     while not submission_id_queue.empty():
+        if submission_id_queue.qsize() % 10 == 0:
+            print("Remaining submission requests: %s" % submission_id_queue.qsize())
+
         contest_id, submission_id = submission_id_queue.get_nowait()
 
         # Make the folder problem_data/contest_id if it doesnt exist
@@ -91,7 +116,26 @@ def scrape_code_force(gym=False):
     thread_process_request_queue(base_download_path, request_queue)
     while threading.active_count() != 1:
         continue
-    
+
+def thread_make_api_calls(contest_id_queue, submission_id_queue):
+    while True:
+        time.sleep(1)  # Prevent API blocks
+        try:
+            print("Remaining API requests: %s" % contest_id_queue.qsize())
+            contest_id = contest_id_queue.get_nowait()
+        except Empty:
+            return
+        
+        submission_list_dict = json.loads(requests.get(SUBMISSION_LIST_API % contest_id).text)
+
+        if submission_list_dict["status"] == "FAILED":
+            continue
+        
+        for submission_dict in submission_list_dict['result']:
+            # If the submission is valid and is written in C++, add it to the queue
+            if submission_dict['verdict'] == "OK" and "C++" in submission_dict['programmingLanguage']:
+                submission_id_queue.put((str(contest_id), str(submission_dict['id'])))
+
 
 def thread_process_request_queue(base_download_path, request_queue):
     # Let threads know that requests are still being made
