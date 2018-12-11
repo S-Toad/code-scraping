@@ -10,7 +10,7 @@ PKL_NAME = "partioned_submission_tuple_list.pkl"
 CSRF_URL = "https://codeforces.com/contest/1033/status"
 SUB_API = "https://codeforces.com/data/submitSource"
 
-PROMISES_AMOUNT = 3
+PROMISES_AMOUNT = 4
 BATCH_SIZE = 10
 SLEEP_TIME = 1.2
 
@@ -85,8 +85,6 @@ def make_requests(l):
 
                 if file_path is None:
                     break
-
-                print("Adding promise...")
 
                 post_data = {}
                 post_data['submissionId'] = sub_id
