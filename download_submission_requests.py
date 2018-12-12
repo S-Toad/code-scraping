@@ -16,7 +16,7 @@ SLEEP_TIME = 1.2
 
 
 def download_submissions():
-    data_path = os.path.join(BASE_PATH, "data")
+    data_path = os.path.join(BASE_PATH, "..", "data")
     if not os.path.isdir(data_path):
         os.mkdir(data_path)
 
