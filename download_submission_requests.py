@@ -16,9 +16,6 @@ SLEEP_TIME = 1.2
 
 
 def download_submissions():
-    data_path = os.path.join(BASE_PATH, "..", "data")
-    if not os.path.isdir(data_path):
-        os.mkdir(data_path)
 
     with open(os.path.join(BASE_PATH, PKL_NAME), 'rb') as f:
         sub_tuple_list = pickle.load(f)
@@ -114,7 +111,7 @@ def get_file_path(sub_id, contest_id, problem_index, lang):
     if lang[-1] == "_":
         lang = lang[:-1]
 
-    file_path = os.path.join(BASE_PATH, "data", str(contest_id), problem_index)
+    file_path = os.path.join(BASE_PATH, "..", "data", str(contest_id), problem_index)
     os.makedirs(file_path, exist_ok=True)
     
     file_name = "%s_%s.cpp" % (str(sub_id), lang)
