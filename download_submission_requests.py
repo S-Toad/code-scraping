@@ -32,7 +32,8 @@ def download_submissions():
             request_tuple_list = make_requests(sub_tuple_list[left_index:right_index])
         except KeyboardInterrupt:
             return
-        except:
+        except Exception as e:
+            print(e)
             print("ERROR: Batch %s failed! Skipping..." % batch_index)
             batch_index += 1
             left_index = right_index
