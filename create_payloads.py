@@ -5,6 +5,7 @@ import sys
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 PKL_NAME = "submission_tuple_list.pkl"
+PYTHON_FILE = "download_submission_requests.py"
 
 def create_payloads(worker_count):
     pkl_path = os.path.join(BASE_PATH, PKL_NAME)
@@ -15,11 +16,12 @@ def create_payloads(worker_count):
     with open(pkl_path, "rb") as f:
         submission_tuple_list = pickle.load(f)
     
+
     partion_list = split(submission_tuple_list, worker_count)
 
     for i in range(worker_count):
         folder_name = "payload_%s" % str(i)
-        folder_path = os.path.join(BASE_PATH, folder_name)
+        folder_path = os.path.join(BASE_PATH, "payloads", folder_name)
         if not os.path.isdir(folder_path):
             os.mkdir(folder_path)
         
@@ -29,9 +31,8 @@ def create_payloads(worker_count):
         with open(list_pkl_path, "wb") as f:
             pickle.dump(partion_list[i], f)
 
-        exec_py_code_file = "download_submission_requests.py"
-        exec_py_code_source = os.path.join(BASE_PATH, exec_py_code_file)
-        exec_py_code_dest = os.path.join(folder_path, exec_py_code_file)
+        exec_py_code_source = os.path.join(BASE_PATH, PYTHON_FILE)
+        exec_py_code_dest = os.path.join(folder_path, PYTHON_FILE)
         copyfile(exec_py_code_source, exec_py_code_dest)
 
 
