@@ -114,13 +114,8 @@ def get_file_path(sub_id, contest_id, problem_index, lang):
     if lang[-1] == "_":
         lang = lang[:-1]
 
-    file_path = os.path.join(BASE_PATH, "data", str(contest_id))
-    if not os.path.isdir(file_path):
-        os.mkdir(file_path)
-    
-    file_path = os.path.join(file_path, problem_index)
-    if not os.path.isdir(file_path):
-        os.mkdir(file_path)
+    file_path = os.path.join(BASE_PATH, "data", str(contest_id), problem_index)
+    os.makedirs(file_path, exist_ok=True)
     
     file_name = "%s_%s.cpp" % (str(sub_id), lang)
     file_path = os.path.join(file_path, file_name)
