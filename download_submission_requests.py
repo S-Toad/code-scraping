@@ -11,12 +11,11 @@ CSRF_URL = "https://codeforces.com/contest/1033/status"
 SUB_API = "https://codeforces.com/data/submitSource"
 
 PROMISES_AMOUNT = 4
-BATCH_SIZE = 10
+BATCH_SIZE = 50
 SLEEP_TIME = 1.2
 
 
 def download_submissions():
-
     with open(os.path.join(BASE_PATH, PKL_NAME), 'rb') as f:
         sub_tuple_list = pickle.load(f)
 
@@ -56,6 +55,8 @@ def download_submissions():
 
             with open(file_path, "wb") as f:
                 f.write(source_code.encode())
+    print("FINISHED")
+    time.sleep(1)
   
 
 def make_requests(l):
@@ -112,7 +113,7 @@ def get_file_path(sub_id, contest_id, problem_index, lang):
     if lang[-1] == "_":
         lang = lang[:-1]
 
-    file_path = os.path.join(BASE_PATH, "..", "data", str(contest_id), problem_index)
+    file_path = os.path.join(BASE_PATH, "..", "..", "data", str(contest_id), problem_index)
     os.makedirs(file_path, exist_ok=True)
     
     file_name = "%s_%s.cpp" % (str(sub_id), lang)
