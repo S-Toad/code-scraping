@@ -19,18 +19,16 @@ class SSHHandler():
         self.ssh_threads = [None] * self.connection_limit
 
         self.active_connections = set()
-    
-    def dummy_task(self):
-        pass
 
     def run(self):
-        connection_thread = threading.Thread(target=self.dummy_task)
+        connection_thread = threading.Thread()
         last_print_time = time.time()
 
         while True:
+            time.sleep(1)
             if time.time() - last_print_time > PRINT_DELAY:
-                # TODO: Print active connections here and how many tasks are left
                 last_print_time = time.time()
+                print(self.active_connections)
 
             for i in range(self.connection_limit):
                 # We attempt one thread at a time
@@ -42,15 +40,18 @@ class SSHHandler():
                     connection_thread.start()
                 
                 if self.ssh_threads[i].is_task_done():
-                    # TODO: pass task here
-                    # TODO: Do something if task fails
-                    if self.ssh_threads[i].is_task_successful():
+                    if not self.ssh_threads[i].is_task_successful():
+                        # TODO: Add task to some sort of failed list
                         pass
+                    task_sent = self.ssh_threads[i].run_task(self.task_tuple_list.pop(), "test")
+                    if not task_sent:
+                        print("Task could not be sent to %s, removing..." % self.ssh_threads[i].ssh_name)
+                        self.ssh_threads[i] = None
+                        continue
                 
                 while len(self.ssh_threads[i].print_list) != 0:
                     print(self.ssh_threads[i].pop())
                 
-                # TODO: Implement way to check if ssh connection dies? If so, make a new one
                 
 
     def create_new_connection(self, index):
@@ -71,7 +72,8 @@ class SSHHandler():
             
             self.ssh_threads[index] = SSHThread(ssh_client, self.command, ssh_name)
             self.active_connections.add(ssh_name)
-            # TODO: Print some info here about the connection made
+            
+            print("Connection made with %s." % ssh_name)
             break
             
 
@@ -86,7 +88,7 @@ class SSHHandler():
         for lab in LABS:
             for i in range(1, COMPUTER_COUNT):
                 num_str = "0" + str(i) if i < 10 else str(i)
-                ssh_names.append(BASE_SSH_NAME % (lab, num_str))
+                ssh_names.append("%s-%s" % (lab, num_str))
         yield None
         while True:
             for ssh_name in ssh_names:
@@ -101,10 +103,10 @@ class SSHThread():
         self.print_list = []
         self.task_finish = False
         self.task_successful = False
-        self.thread = None
+        self.thread = threading.Thread()
     
     def is_task_done(self):
-        return self.thread.is_alive()
+        return not self.thread.is_alive()
     
     def is_task_successful(self):
         return self.task_successful
@@ -120,16 +122,22 @@ class SSHThread():
         return command_str
     
     def run_task(self, arg_tuple, task_name=""):
+        # TODO: Return false if ssh connection is dead
+        # if ssh is dead:
+        #    return False
+
         self.thread = threading.Thread(
             target=self.thread_run_task,
             args=(arg_tuple, task_name))
         self.thread.start()
+
+        return True
     
     def thread_run_task(self, arg_tuple, task_name):
         self.task_successful = False
         command_str = self.format_command(arg_tuple)
 
-        std_in, std_out, std_err = self.ssh_client(command_str)
+        std_in, std_out, std_err = self.ssh_client.exec_command(command_str)
         std_out.channel.setblocking(0)
         std_err.channel.setblocking(0)
 
