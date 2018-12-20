@@ -71,6 +71,7 @@ class SSHHandler():
                 continue
             
             self.ssh_threads[index] = SSHThread(ssh_client, self.command, ssh_name)
+            self.active_connections.add(ssh_name)
             # TODO: Print some info here about the connection made
             break
             
