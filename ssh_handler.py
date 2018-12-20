@@ -47,9 +47,8 @@ class SSHHandler():
                     if self.ssh_threads[i].is_task_successful():
                         pass
                 
-                if self.ssh_threads[i].print_list != []:
-                    # TODO: print output here
-                    pass
+                while len(self.ssh_threads[i].print_list) != 0:
+                    print(self.ssh_threads[i].pop())
                 
                 # TODO: Implement way to check if ssh connection dies? If so, make a new one
                 
