@@ -4,6 +4,7 @@ import re
 import time
 import os
 import json
+import sys
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 PKL_NAME = "partioned_submission_tuple_list.pkl"
@@ -15,49 +16,21 @@ BATCH_SIZE = 50
 SLEEP_TIME = 1.2
 
 
-def download_submissions():
-    with open(os.path.join(BASE_PATH, PKL_NAME), 'rb') as f:
-        sub_tuple_list = pickle.load(f)
+def download_submissions(tuple_list):
+    request_tuple_list = make_requests(tuple_list)
 
-    print("Starting %s batches of size %s" % (((len(sub_tuple_list) + BATCH_SIZE) // BATCH_SIZE), BATCH_SIZE))
-    left_index = 0
-    right_index = BATCH_SIZE
-    batch_index = 1
-
-    while left_index < len(sub_tuple_list):
-        print("Starting batch %s..." % batch_index)
-
+    for file_path, sub_json_result in request_tuple_list:
         try:
-            request_tuple_list = make_requests(sub_tuple_list[left_index:right_index])
+            sub_dict = json.loads(sub_json_result.text)
+            dummy = sub_dict['source']
         except KeyboardInterrupt:
             return
-        except Exception as e:
-            print(e)
-            print("ERROR: Batch %s failed! Skipping..." % batch_index)
-            batch_index += 1
-            left_index = right_index
-            right_index = min(right_index + BATCH_SIZE, len(sub_tuple_list))
+        except:
+            print("ERROR: %s failed to load as proper json, skipping..." % file_path)
             continue
-        
-        batch_index += 1
-        left_index = right_index
-        right_index = min(right_index + BATCH_SIZE, len(sub_tuple_list))
 
-        for file_path, sub_json_result in request_tuple_list:
-            try:
-                sub_dict = json.loads(sub_json_result.text)
-                source_code = sub_dict['source']
-            except KeyboardInterrupt:
-                return
-            except:
-                print("ERROR: %s failed to load as proper json, skipping..." % file_path)
-                continue
-
-            with open(file_path, "wb") as f:
-                f.write(source_code.encode())
-    print("FINISHED")
-    time.sleep(1)
-  
+        with open(file_path, "w") as f:
+            f.write(sub_json_result.text)
 
 def make_requests(l):
     request_tuple_list = []
@@ -78,7 +51,7 @@ def make_requests(l):
 
                 while (len(l) != 0):
                     sub_id, contest_id, problem_index, lang = l.pop()
-                    file_path = get_file_path(sub_id, contest_id, problem_index, lang)
+                    file_path = get_file_path(sub_id, contest_id, problem_index)
                     if file_path is not None:
                         break
 
@@ -107,16 +80,11 @@ def get_csrf_token(session):
 
     return csrf_token
 
-def get_file_path(sub_id, contest_id, problem_index, lang):
-    lang = lang.replace(" ", "_")
-    lang = lang.replace("++", "pp_")
-    if lang[-1] == "_":
-        lang = lang[:-1]
-
-    file_path = os.path.join(BASE_PATH, "..", "..", "data", str(contest_id), problem_index)
+def get_file_path(sub_id, contest_id, problem_index):
+    file_path = os.path.join(BASE_PATH, "data", str(contest_id), problem_index)
     os.makedirs(file_path, exist_ok=True)
     
-    file_name = "%s_%s.cpp" % (str(sub_id), lang)
+    file_name = "%s.json" % str(sub_id)
     file_path = os.path.join(file_path, file_name)
 
     if os.path.isfile(file_path):
@@ -125,6 +93,11 @@ def get_file_path(sub_id, contest_id, problem_index, lang):
         return file_path
 
 
-
 if __name__ == "__main__":
-    download_submissions()
+    with open(sys.argv[1], "rb") as f:
+        tuple_list = pickle.load(f)
+    download_submissions(tuple_list)
+
+    time.sleep(0.5)
+    print("FINISHED")
+    time.sleep(0.5)
