@@ -3,3 +3,6 @@ __pycache__/
 problem_data/*
 temp/*
 *.pyc
+code_force_data.sqlite
+data/
+
