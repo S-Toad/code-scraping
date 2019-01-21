@@ -5,4 +5,4 @@ temp/*
 *.pyc
 code_force_data.sqlite
 data/
-
+submission_tuple_list.pkl
