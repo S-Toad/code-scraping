@@ -19,7 +19,7 @@ SLEEP_TIME = 1.2
 def download_submissions(tuple_list):
     request_tuple_list = make_requests(tuple_list)
 
-    for file_path, sub_json_result in request_tuple_list:
+    for file_path, sub_json_result, code_lang in request_tuple_list:
         try:
             sub_dict = json.loads(sub_json_result.text)
             dummy = sub_dict['source']
@@ -28,6 +28,9 @@ def download_submissions(tuple_list):
         except:
             print("ERROR: %s failed to load as proper json, skipping..." % file_path)
             continue
+        
+        new_json_text = sub_json_result.text[:-1]
+        new_json_text +=  ', "programmingLanguage": "%s"}' % code_lang
 
         with open(file_path, "w") as f:
             f.write(sub_json_result.text)
@@ -39,7 +42,9 @@ def make_requests(l):
     csrf_token = get_csrf_token(session)
     promises = [None] * PROMISES_AMOUNT
     file_paths = [None] * PROMISES_AMOUNT
+    lang = [None] * PROMISES_AMOUNT
     finish_index_set = set()
+    lang_dict = {}
 
     while len(finish_index_set) != PROMISES_AMOUNT:
         time.sleep(SLEEP_TIME)
@@ -50,7 +55,7 @@ def make_requests(l):
                     continue
 
                 while (len(l) != 0):
-                    sub_id, contest_id, problem_index, lang = l.pop()
+                    sub_id, contest_id, problem_index, code_lang = l.pop()
                     file_path = get_file_path(sub_id, contest_id, problem_index)
                     if file_path is not None:
                         break
@@ -63,10 +68,12 @@ def make_requests(l):
                 post_data['csrf_token'] = csrf_token
 
                 file_paths[i] = file_path
+                lang[i] = code_lang
                 promises[i] = session.post(SUB_API, data=post_data)
             elif promises[i]._state == "FINISHED":
-                request_tuple_list.append((file_paths[i], promises[i].result()))
+                request_tuple_list.append((file_paths[i], promises[i].result(), lang[i]))
                 file_paths[i] = None
+                lang[i] = None
                 promises[i] = None
 
     return request_tuple_list
