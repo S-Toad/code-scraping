@@ -18,8 +18,9 @@ PORT = 922
 
 
 # TODO: Move this code to its own repo
+# TODO: Implement verbose logging
 class SSHHandler():
-    def __init__(self, task_tuple_list, command, connection_limit=10, payload_size=10):
+    def __init__(self, task_tuple_list, command, connection_limit=10, payload_size=10, print_finish=False):
         """Constructs an SSHHandler object that will be able to manage SSH connections and send tasks
 
         task_tuple_list - A list of tuples in which a subset will be sent to computers to complete
@@ -32,6 +33,7 @@ class SSHHandler():
         self.command = command
         self.connection_limit = connection_limit
         self.payload_size = payload_size
+        self.print_finish = print_finish
 
         # Create an ssh name generator
         self.ssh_gen = self.get_ssh_name_gen()
@@ -62,8 +64,12 @@ class SSHHandler():
             # Print out detailed infomation each PRINT_DELAY seconds
             if time.time() - last_print_time > PRINT_DELAY:
                 last_print_time = time.time()
-                print("Active connections: " + str(self.active_connections))
-                print("Batch: %s/%s" % (batch_index, self.batch_size))
+                percent = float(batch_index) / float(self.batch_size)
+                percent = percent * 100.0
+                percent = round(percent, 2)
+                print("Active connections: " + str(sorted(self.active_connections)))
+                print("Active connections count: " + str(len(self.active_connections)))
+                print("Batch: %s/%s = %.2f" % (batch_index, self.batch_size, percent))
 
             # Loop over each connection
             for i in range(self.connection_limit):
@@ -72,8 +78,7 @@ class SSHHandler():
                     # True if connection_thread isn't working
                     if not connection_thread.is_alive():
                         # Tell the connection_thread to start attempting to fill this
-                        # index with a connection. See def create_new_connection for more information
-                        print("Spawning a thread to create a task on %s" % i)
+                        # index with a connection. See create_new_connection for more information
                         connection_thread = threading.Thread(
                             target=self.create_new_connection,
                             args=(i,)
@@ -83,13 +88,13 @@ class SSHHandler():
                 elif self.ssh_threads[i].is_task_done():
                     # True if the last task was not successful
                     if not self.ssh_threads[i].is_task_successful():
-                        print("Last task for %s wasn't successful" % i)
-                        # TODO: Read pkl and do something
-                        pass
+                        print("Last task for %s wasn't successful, removing..." % i)
+                        self.ssh_threads[i] = None
+                        continue
+
                     # True if ssh connection is still active
                     if self.ssh_threads[i].is_ssh_alive():
-                        # Create a pkl payload and get its path
-                        pkl_path = self.package_tasks(i)
+                        pkl_path = self.package_tasks(i)  # Create a pkl payload and get its path
                         # True if more tasks are left
                         if pkl_path is not None:
                             print("Starting Batch %s" % (batch_index + 1))
@@ -165,7 +170,7 @@ class SSHHandler():
                 continue
             
             # Store connection in array and add hostname to set
-            self.ssh_threads[index] = SSHThread(ssh_client, self.command, ssh_name)
+            self.ssh_threads[index] = SSHThread(ssh_client, self.command, ssh_name, self.print_finish)
             self.active_connections.add(ssh_name)
             
             print("Connection made with %s." % ssh_name)
@@ -198,7 +203,7 @@ class SSHHandler():
                 yield ssh_name
 
 class SSHThread():
-    def __init__(self, ssh_client, command, ssh_name):
+    def __init__(self, ssh_client, command, ssh_name, print_finish):
         """Creates an SSHThread object that will handle a SSH connection to a computer
         and handle sending tasks to said computer
         
@@ -209,6 +214,7 @@ class SSHThread():
         self.ssh_client = ssh_client
         self.command = command
         self.ssh_name = ssh_name
+        self.print_finish = print_finish
 
         # print_list will store strings to be printed out by main thread
         self.print_list = []
@@ -251,7 +257,10 @@ class SSHThread():
         command_str = self.command + " " + pkl_path
 
         # Run command and init pipes
-        std_in, std_out, std_err = self.ssh_client.exec_command(command_str)
+        try:
+            std_in, std_out, std_err = self.ssh_client.exec_command(command_str)
+        except:
+            return
 
         out_data = b""
         #err_data = b""
@@ -278,10 +287,15 @@ class SSHThread():
         if data == b'\n':
             # Cast to string, format into hostname-taskname: string form
             str_out = curr_data.decode("utf-8")
-            self.print_list.append("%s%s: %s" % (self.ssh_name, task_name, str_out))
             # If the program prints FINISHED then the task was successful
             if str_out == "FINISHED":
                 self.task_successful = True
+                if self.print_finish:
+                    self.print_list.append("%s%s: %s" % (self.ssh_name, task_name, str_out))
+                return b''
+
+            self.print_list.append("%s%s: %s" % (self.ssh_name, task_name, str_out))
+
             # Returns empty bytes to start a new running output
             return b''
         else:
